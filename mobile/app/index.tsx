@@ -1,5 +1,9 @@
 import { StatusBar } from 'expo-status-bar'
 import { ImageBackground, Text, TouchableOpacity, View } from 'react-native'
+import { makeRedirectUri,  useAuthRequest } from 'expo-auth-session';
+import * as SecureStore from 'expo-secure-store'
+import {useRouter} from 'expo-router'
+
 
 import {
   useFonts,
@@ -9,20 +13,62 @@ import {
 
 import { BaiJamjuree_700Bold } from '@expo-google-fonts/bai-jamjuree'
 
-import blurBg from './src/assets/bg-blur.png'
-import Stripes from './src/assets/stripes.svg'
-import NLWLogo from './src/assets/nlw-spacetime-logo.svg'
+import blurBg from '../src/assets/bg-blur.png'
+import Stripes from '../src/assets/stripes.svg'
+import NLWLogo from '../src/assets/nlw-spacetime-logo.svg'
 import { styled } from 'nativewind'
+import { useEffect } from 'react';
+import { api } from '../src/lib/api';
+
+const discovery = {
+  authorizationEndpoint: 'https://github.com/login/oauth/authorize',
+  tokenEndpoint: 'https://github.com/login/oauth/access_token',
+  revocationEndpoint: 'https://github.com/settings/connections/applications/246f40681724d6c31a0f',
+};
 
 const StyledStripes = styled(Stripes)
 
 export default function App() {
+  const router = useRouter()
+
   const [hasLoadedFonts] = useFonts({
     Roboto_400Regular,
     Roboto_700Bold,
     BaiJamjuree_700Bold,
   })
 
+  const [request, response, signInWithGitHub] = useAuthRequest(
+    {
+      clientId: '246f40681724d6c31a0f',
+      scopes: ['identity'],
+      redirectUri: makeRedirectUri({
+        scheme: 'nlwspacetime'
+      }),
+    },
+    discovery
+  );
+  
+  async function  handleGithubOauthCode(code: string){
+    const response = await api
+    .post('/register', {
+      code,
+    })
+
+    const {token} = response.data
+
+    await SecureStore.setItemAsync('token', token)
+
+    router.push('/memories')
+  }
+
+  useEffect(() => {
+    if (response?.type === 'success') {
+      const { code } = response.params;
+      handleGithubOauthCode(code)
+    }
+  }, [response]);
+
+  
   if (!hasLoadedFonts) {
     return null
   }
@@ -51,6 +97,7 @@ export default function App() {
         <TouchableOpacity
           activeOpacity={0.7}
           className="rounded-full bg-green-500 px-5 py-2"
+          onPress={()=>signInWithGitHub()}
         >
           <Text className="font-alt text-sm uppercase text-black">
             Cadastrar lembrança
@@ -66,3 +113,4 @@ export default function App() {
     </ImageBackground>
   )
 }
+
